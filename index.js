@@ -1,6 +1,7 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const port = process.env.PORT || 3030;
 
@@ -35,7 +36,15 @@ async function run() {
     );
     const productCollection = client.db("amTrustMart").collection("products");
     const usersCollection = client.db("amTrustMart").collection("users");
-
+    // JWT
+    app.post("/jwt", (req, res) => {
+      const user = req.body;
+      // console.log(user);
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "10h",
+      });
+      res.send({ token });
+    });
     // All product
     app.get("/products", async (req, res) => {
       const result = await productCollection.find().toArray();
@@ -55,7 +64,9 @@ async function run() {
       const isExistUser = await usersCollection.findOne(query);
 
       if (isExistUser) {
-        return res.send({ message: "User already registered with this email" });
+        return res.send({
+          errorMessage: "User already registered with this email",
+        });
       }
 
       const result = await usersCollection.insertOne(user);
