@@ -36,6 +36,7 @@ async function run() {
     );
     const productCollection = client.db("amTrustMart").collection("products");
     const usersCollection = client.db("amTrustMart").collection("users");
+    const cartCollection = client.db("amTrustMart").collection("carts");
     // JWT
     app.post("/jwt", (req, res) => {
       const user = req.body;
@@ -71,6 +72,33 @@ async function run() {
 
       const result = await usersCollection.insertOne(user);
       res.send(result);
+    });
+
+    // Patch user info
+    app.patch("/users/:email", async (req, res) => {
+      try {
+        const userEmail = req.params.email; // Get the user's email from the URL parameter
+        const updatedUserData = req.body; // Get the updated user data from the request body
+        console.log(updatedUserData);
+        console.log(userEmail);
+        // Check if the user with the specified email exists in the database
+        const user = await usersCollection.findOne({ email: userEmail });
+
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+
+        // Update the user's data with the new information
+        await usersCollection.updateOne(
+          { email: userEmail },
+          { $set: updatedUserData }
+        );
+
+        res.status(200).json({ message: "User data updated successfully" });
+      } catch (error) {
+        console.error("Error updating user data:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
     });
 
     app.get("/", (req, res) => {
