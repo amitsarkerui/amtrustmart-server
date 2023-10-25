@@ -16,14 +16,12 @@ app.use(express.json());
 // Verify JWT
 const verifyJWT = (req, res, next) => {
   const authorization = req.headers.authorization;
-  // console.log("au", authorization);
   if (!authorization) {
     return res
       .status(401)
       .send({ error: true, message: "unauthorized access" });
   }
   const token = authorization.split(" ")[1];
-  // console.log(token);
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (error, decoded) => {
     if (error) {
       return res
@@ -31,12 +29,11 @@ const verifyJWT = (req, res, next) => {
         .send({ error: true, message: "unauthorized access 2" });
     }
     req.decoded = decoded;
-    // console.log(req.decoded);
+    next();
   });
-  next();
 };
 
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USERS}:${process.env.DB_PASS}@cluster0.pq4nrld.mongodb.net/?retryWrites=true&w=majority`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -84,7 +81,7 @@ async function run() {
     });
     // get user cart data by email
     app.get("/carts", verifyJWT, async (req, res) => {
-      const email = req.query.email;
+      const email = req.query?.email;
       // console.log(email);
       if (!email) {
         res.send([]);
@@ -97,6 +94,26 @@ async function run() {
       }
       const query = { email: email };
       const result = await cartCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    // Cart qty update
+    app.patch("/carts", async (req, res) => {
+      const id = req.body._id;
+      const qty = req.body.qty;
+
+      const filter = { _id: new ObjectId(id) };
+      const update = { $set: { qty: qty } };
+      const result = await cartCollection.updateOne(filter, update);
+      res.send(result);
+    });
+
+    // Remove Carts
+    app.delete("/carts", async (req, res) => {
+      const id = req.body.id;
+      // console.log(id);
+      const filter = { _id: new ObjectId(id) };
+      const result = await cartCollection.deleteOne(filter);
       res.send(result);
     });
 
