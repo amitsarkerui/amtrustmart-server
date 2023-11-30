@@ -57,6 +57,7 @@ async function run() {
     const productCollection = client.db("amTrustMart").collection("products");
     const usersCollection = client.db("amTrustMart").collection("users");
     const cartCollection = client.db("amTrustMart").collection("carts");
+    const ordersCollection = client.db("amTrustMart").collection("orders");
     // JWT
     app.post("/jwt", (req, res) => {
       const user = req.body;
@@ -117,6 +118,20 @@ async function run() {
       res.send(result);
     });
 
+    // Payment Operations --------------------------------------------------------------
+    app.post("/orders", async (req, res) => {
+      const data = req.body;
+      const result = await ordersCollection.insertOne(data);
+      res.send(result);
+    });
+
+    app.delete("/deleteUserCart/:email", async (req, res) => {
+      const userEmail = req.params.email;
+      const query = { email: userEmail };
+      const result = await cartCollection.deleteMany(query);
+      // console.log(result);
+      res.send(result);
+    });
     // User Operation ------------------------------------------------------------------
     // Get all user
     app.get("/users", async (req, res) => {
@@ -144,8 +159,8 @@ async function run() {
       try {
         const userEmail = req.params.email; // Get the user's email from the URL parameter
         const updatedUserData = req.body; // Get the updated user data from the request body
-        console.log(updatedUserData);
-        console.log(userEmail);
+        // console.log(updatedUserData);
+        // console.log(userEmail);
         // Check if the user with the specified email exists in the database
         const user = await usersCollection.findOne({ email: userEmail });
 
