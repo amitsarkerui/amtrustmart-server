@@ -5,6 +5,12 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const port = process.env.PORT || 3030;
 
+// SSL Commerce
+const SSLCommerzPayment = require("sslcommerz-lts");
+const store_id = process.env.STORE_ID;
+const store_passwd = process.env.STORE_KEY;
+const is_live = false;
+
 const corsConfig = {
   origin: "*",
   credentials: true,
@@ -118,7 +124,7 @@ async function run() {
       res.send(result);
     });
 
-    // Payment Operations --------------------------------------------------------------
+    // Order Operations --------------------------------------------------------------
     app.post("/orders", async (req, res) => {
       const data = req.body;
       const result = await ordersCollection.insertOne(data);
@@ -132,6 +138,91 @@ async function run() {
       // console.log(result);
       res.send(result);
     });
+
+    // SSL Payment
+
+    app.post("/payment", (req, res) => {
+      const tran_id = new ObjectId().toString();
+      const orderedDetails = req.body;
+      // console.log(orderedDetails);
+      const subTotalPrice = orderedDetails.productDetails.reduce(
+        (total, product) => total + product.price * product.qty,
+        0
+      );
+      const grandTotalPrice = Math.floor(
+        subTotalPrice + (subTotalPrice * 15) / 100
+      );
+      let productName = "";
+      orderedDetails.productDetails.map((item) => {
+        productName = productName + "&" + item.productName;
+      });
+      // console.log(productName);
+      const data = {
+        total_amount: grandTotalPrice,
+        currency: "USD",
+        tran_id: tran_id,
+        success_url: `http://localhost:3030/payment/success/${tran_id}`,
+        fail_url: "http://localhost:3030/fail",
+        cancel_url: "http://localhost:3030/cancel",
+        ipn_url: "http://localhost:3030/ipn",
+        shipping_method: "Courier",
+        product_name: productName,
+        product_category: "Electronic",
+        product_profile: "general",
+        cus_name: orderedDetails?.userName,
+        cus_email: orderedDetails?.contactEmail,
+        cus_add1: orderedDetails?.address1,
+        cus_add2: orderedDetails?.address2,
+        cus_city: orderedDetails?.district,
+        cus_state: orderedDetails?.upaZila,
+        cus_postcode: "1000",
+        cus_country: "Bangladesh",
+        cus_phone: orderedDetails?.mobile,
+        cus_fax: "01711111111",
+        ship_name: orderedDetails?.userName,
+        ship_add1: orderedDetails?.address1,
+        ship_add2: orderedDetails?.address2,
+        ship_city: orderedDetails?.district,
+        ship_state: orderedDetails?.upaZila,
+        ship_postcode: 1000,
+        ship_country: "Bangladesh",
+      };
+      // console.log(data);
+      const sslcz = new SSLCommerzPayment(store_id, store_passwd, is_live);
+      sslcz.init(data).then((apiResponse) => {
+        // Redirect the user to payment gateway
+        console.log("h1");
+        let GatewayPageURL = apiResponse.GatewayPageURL;
+        res.send({ url: GatewayPageURL });
+        orderedDetails.transactionID = tran_id;
+        const result = ordersCollection.insertOne(orderedDetails);
+        // console.log("Redirecting to: ", GatewayPageURL);
+      });
+    });
+
+    app.post("/payment/success/:transactionID", async (req, res) => {
+      console.log("h2");
+      const transactionId = req.params.transactionID;
+      const query = { transactionID: transactionId };
+      const result = await ordersCollection.updateOne(query, {
+        $set: {
+          paymentStatus: true,
+        },
+      });
+      if (result.modifiedCount > 0) {
+        const orderedDetails = await ordersCollection.findOne(query);
+        if (orderedDetails) {
+          console.log("h3");
+          const filter = { email: orderedDetails.userEmail };
+          const result = await cartCollection.deleteMany(filter);
+          res.redirect(
+            `http://localhost:5173/payment/success/${transactionId}`
+          );
+          // tran_id = "";
+        }
+      }
+    });
+
     // User Operation ------------------------------------------------------------------
     // Get all user
     app.get("/users", async (req, res) => {
