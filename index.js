@@ -162,7 +162,7 @@ async function run() {
         currency: "USD",
         tran_id: tran_id,
         success_url: `http://localhost:3030/payment/success/${tran_id}`,
-        fail_url: "http://localhost:3030/fail",
+        fail_url: `http://localhost:3030/payment/failed/${tran_id}`,
         cancel_url: "http://localhost:3030/cancel",
         ipn_url: "http://localhost:3030/ipn",
         shipping_method: "Courier",
@@ -191,7 +191,6 @@ async function run() {
       const sslcz = new SSLCommerzPayment(store_id, store_passwd, is_live);
       sslcz.init(data).then((apiResponse) => {
         // Redirect the user to payment gateway
-        console.log("h1");
         let GatewayPageURL = apiResponse.GatewayPageURL;
         res.send({ url: GatewayPageURL });
         orderedDetails.transactionID = tran_id;
@@ -199,27 +198,39 @@ async function run() {
         // console.log("Redirecting to: ", GatewayPageURL);
       });
     });
-
+    // Payment Successful
     app.post("/payment/success/:transactionID", async (req, res) => {
-      console.log("h2");
       const transactionId = req.params.transactionID;
       const query = { transactionID: transactionId };
       const result = await ordersCollection.updateOne(query, {
         $set: {
-          paymentStatus: true,
+          paymentStatus: "paid",
         },
       });
       if (result.modifiedCount > 0) {
         const orderedDetails = await ordersCollection.findOne(query);
         if (orderedDetails) {
-          console.log("h3");
           const filter = { email: orderedDetails.userEmail };
           const result = await cartCollection.deleteMany(filter);
           res.redirect(
             `http://localhost:5173/payment/success/${transactionId}`
           );
-          // tran_id = "";
         }
+      }
+    });
+
+    //Payment Failed
+    app.post("/payment/failed/:transactionID", async (req, res) => {
+      // console.log("Hitting failed");
+      const transactionId = req.params.transactionID;
+      const query = { transactionID: transactionId };
+      const result = await ordersCollection.updateOne(query, {
+        $set: {
+          paymentStatus: "failed",
+        },
+      });
+      if (result.modifiedCount > 0) {
+        res.redirect(`http://localhost:5173/payment/failed`);
       }
     });
 
